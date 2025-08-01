@@ -1,0 +1,188 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Chat with Ollama</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      max-width: 800px;
+      margin: 20px auto;
+      padding: 20px;
+      background-color: #f5f5f5;
+    }
+    h1 {
+      color: #333;
+      text-align: center;
+    }
+    #chatLog {
+      list-style: none;
+      padding: 0;
+      background: white;
+      border-radius: 8px;
+      padding: 15px;
+      min-height: 300px;
+      max-height: 500px;
+      overflow-y: auto;
+      border: 1px solid #ddd;
+      margin-bottom: 20px;
+    }
+    #chatLog li {
+      margin: 10px 0;
+      padding: 10px;
+      border-radius: 5px;
+    }
+    #chatLog li.user {
+      background: #e3f2fd;
+      margin-left: 20px;
+    }
+    #chatLog li.bot {
+      background: #f0f0f0;
+      margin-right: 20px;
+    }
+    #chatLog li.typing {
+      color: #666;
+      font-style: italic;
+    }
+    #chatLog hr {
+      border: 0;
+      border-top: 1px solid #ddd;
+      margin: 15px 0;
+    }
+    .input-container {
+      display: flex;
+      gap: 10px;
+    }
+    #messageInput {
+      flex: 1;
+      padding: 10px;
+      border: 1px solid #ddd;
+      border-radius: 5px;
+      font-size: 16px;
+    }
+    #messageInput:focus {
+      outline: none;
+      border-color: #007bff;
+      box-shadow: 0 0 5px rgba(0,123,255,0.3);
+    }
+    #sendBtn {
+      padding: 10px 20px;
+      background: #007bff;
+      color: white;
+      border: none;
+      border-radius: 5px;
+      cursor: pointer;
+      font-size: 16px;
+    }
+    #sendBtn:disabled {
+      background: #cccccc;
+      cursor: not-allowed;
+    }
+    #sendBtn:hover:not(:disabled) {
+      background: #0056b3;
+    }
+  </style>
+</head>
+<body>
+  <h1>Mental Health Chatbot</h1>
+  <ul id="chatLog"></ul>
+  <div class="input-container">
+    <input id="messageInput" type="text" placeholder="Say something..." />
+    <button id="sendBtn" onclick="sendMessage()" disabled>Send</button>
+  </div>
+
+  <script>
+    const ws = new WebSocket("ws://91.108.111.55:9000/ws/chat");
+    let isWaitingForResponse = false;
+    let currentBotLi = null;
+
+    ws.onopen = () => {
+      console.log("WebSocket connected ✔");
+      document.getElementById("sendBtn").disabled = false;
+    };
+
+    ws.onmessage = (event) => {
+      const data = event.data;
+      // Check if the message is an error
+      if (data.startsWith("Error:")) {
+        // Remove typing indicator
+        const typingLi = document.querySelector(".typing");
+        if (typingLi) typingLi.remove();
+        isWaitingForResponse = false;
+        currentBotLi = null;
+
+        // Display error message
+        const li = document.createElement("li");
+        li.textContent = data;
+        li.className = "bot";
+        document.getElementById("chatLog").appendChild(li);
+        return;
+      }
+
+      // Remove typing indicator only when stream starts
+      if (!currentBotLi) {
+        const typingLi = document.querySelector(".typing");
+        if (typingLi) typingLi.remove();
+
+        // Create new bot message element
+        currentBotLi = document.createElement("li");
+        currentBotLi.className = "bot";
+        currentBotLi.textContent = "Bot: ";
+        document.getElementById("chatLog").appendChild(currentBotLi);
+      }
+
+      // Append streamed chunk to current bot message
+      currentBotLi.textContent += data;
+
+      // Scroll to bottom
+      document.getElementById("chatLog").scrollTop = document.getElementById("chatLog").scrollHeight;
+
+      // Reset state when stream is complete (assuming empty message indicates end)
+      if (data === "") {
+        // Add horizontal rule
+        const hr = document.createElement("hr");
+        document.getElementById("chatLog").appendChild(hr);
+        isWaitingForResponse = false;
+        currentBotLi = null;
+      }
+    };
+
+    function sendMessage() {
+      const input = document.getElementById("messageInput");
+      const message = input.value.trim();
+      if (!message || isWaitingForResponse) return;
+
+      if (ws.readyState !== WebSocket.OPEN) {
+        alert("Connection isn’t ready yet. Please wait a moment…");
+        return;
+      }
+
+      ws.send(message);
+      
+      // Add user message
+      const li = document.createElement("li");
+      li.textContent = "You: " + message;
+      li.className = "user";
+      document.getElementById("chatLog").appendChild(li);
+      
+      // Add typing indicator
+      const typingLi = document.createElement("li");
+      typingLi.textContent = "Typing...";
+      typingLi.className = "typing";
+      document.getElementById("chatLog").appendChild(typingLi);
+      
+      isWaitingForResponse = true;
+      input.value = "";
+      
+      // Scroll to bottom
+      document.getElementById("chatLog").scrollTop = document.getElementById("chatLog").scrollHeight;
+    }
+
+    // Handle Enter key press
+    document.getElementById("messageInput").addEventListener("keypress", (event) => {
+      if (event.key === "Enter") {
+        sendMessage();
+      }
+    });
+  </script>
+</body>
+</html>

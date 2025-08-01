@@ -1,5 +1,6 @@
 import httpx
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
+import json
 
 app = FastAPI()
 
@@ -26,22 +27,27 @@ async def websocket_endpoint(websocket: WebSocket):
             payload = {
                 "model": MODEL_NAME,
                 "prompt": prompt,
-                "stream": False
+                "stream": True
             }
 
             timeout = httpx.Timeout(60.0, connect=10.0)
+            bot_response = ""
 
             async with httpx.AsyncClient(timeout=timeout) as client:
-                response = await client.post(OLLAMA_URL, json=payload)
-                response.raise_for_status()
-                data = response.json()
-
-            bot_response = data.get("response", "").strip()
+                async with client.stream("POST", OLLAMA_URL, json=payload) as response:
+                    response.raise_for_status()
+                    async for line in response.aiter_lines():
+                        if line.strip():
+                            data = json.loads(line)
+                            if "response" in data:
+                                chunk = data["response"]
+                                bot_response += chunk
+                                await websocket.send_text(chunk)
+                            if data.get("done", False):
+                                break
 
             # Append the assistant's response to the history
             history += f"Assistant: {bot_response}\n"
-
-            await websocket.send_text(bot_response)
 
     except WebSocketDisconnect:
         print("WebSocket connection closed")
