@@ -1,4 +1,4 @@
 __pycache*
 *.log
-.venv
+.venv*
 chatbot
