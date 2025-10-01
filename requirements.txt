@@ -1,4 +1,4 @@
-httpx==0.28.
+httpx
 fastapi==0.116.1
 gunicorn==23.0.0
-uvicorn==0.35.0
+uvicorn[standard]

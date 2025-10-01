@@ -1,0 +1,8 @@
+services:
+  chatbot:
+    build: .
+    container_name: ml-chatbot-api
+    network_mode: "host"
+    env_file:
+      - prod.env
+    restart: unless-stopped
